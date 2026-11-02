@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>File Compressor</title>
+  <style>
+    body {
+      max-width: 640px;
+      margin: 48px auto;
+      padding: 0 20px;
+      color: #222;
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+    h1 { margin-bottom: 8px; }
+    .panel {
+      margin: 24px 0;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    input { display: block; margin: 14px 0; max-width: 100%; }
+    button {
+      padding: 9px 14px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background: #f5f5f5;
+      color: #222;
+      cursor: pointer;
+    }
+    button:disabled { cursor: wait; opacity: .6; }
+    .status { min-height: 1.5em; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <h1>File Compressor</h1>
+  <p>Compress files into standard gzip files, or restore a gzip file. Files stay on this computer.</p>
+
+  <section class="panel">
+    <h2>Compress a file</h2>
+    <input id="compress-file" type="file">
+    <button id="compress-button" type="button">Compress and download</button>
+    <p id="compress-status" class="status" aria-live="polite"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Decompress a file</h2>
+    <input id="decompress-file" type="file" accept=".gz,application/gzip">
+    <button id="decompress-button" type="button">Decompress and download</button>
+    <p id="decompress-status" class="status" aria-live="polite"></p>
+  </section>
+
+  <script>
+    async function processFile(operation) {
+      const input = document.getElementById(`${operation}-file`);
+      const button = document.getElementById(`${operation}-button`);
+      const status = document.getElementById(`${operation}-status`);
+      const file = input.files[0];
+      if (!file) {
+        status.textContent = "Choose a file first.";
+        return;
+      }
+
+      button.disabled = true;
+      status.textContent = operation === "compress" ? "Compressing…" : "Decompressing…";
+      try {
+        const url = `/${operation}?filename=${encodeURIComponent(file.name)}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: file
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const blob = await response.blob();
+        const outputName = operation === "compress"
+          ? `${file.name}.gz`
+          : (file.name.toLowerCase().endsWith(".gz")
+            ? file.name.slice(0, -3)
+            : `${file.name}.decompressed`);
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = outputName || "download";
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+        status.textContent = `Done. Downloaded ${link.download}.`;
+      } catch (error) {
+        status.textContent = error.message || "The file could not be processed.";
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    document.getElementById("compress-button").addEventListener(
+      "click", () => processFile("compress")
+    );
+    document.getElementById("decompress-button").addEventListener(
+      "click", () => processFile("decompress")
+    );
+  </script>
+</body>
+</html>
